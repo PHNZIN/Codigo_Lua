@@ -157,14 +157,86 @@
     </footer>
   </div>
 
-  <script>
+  <script type="module">
+    import { initializeApp, getApps, getApp } 
+      from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getDatabase, ref, get, child } 
+      from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+    // Configuração do Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyDOOD1jFfKbznNbhbx0g22orXnvdY55IH8",
+      authDomain: "level-up-academy-698fa.firebaseapp.com",
+      databaseURL: "https://level-up-academy-698fa-default-rtdb.firebaseio.com",
+      projectId: "level-up-academy-698fa",
+      storageBucket: "level-up-academy-698fa.appspot.com",
+      messagingSenderId: "96904343253",
+      appId: "1:96904343253:web:4f938c593c3968951b7c5c"
+    };
+
+    // Inicializa o Firebase (evita duplicação)
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Função para buscar desafios de uma dificuldade no Firebase
+    async function loadChallengesFromDB(difficulty) {
+      const snapshot = await get(child(ref(db), `reflexgames/${difficulty}`));
+      if (snapshot.exists()) {
+        let data = snapshot.val();
+
+        // 🔧 Se os dados vierem como objeto (ex.: {"0": {...}, "1": {...}}), converte para array
+        if (!Array.isArray(data)) {
+          data = Object.values(data);
+        }
+
+        return data;
+      } else {
+        console.error("Nenhum desafio encontrado no Firebase!");
+        return [];
+      }
+    }
+
+    // Expõe a função para o script principal
+    window.loadChallengesFromDB = loadChallengesFromDB;
+  </script>
+
+  <script type="module">
+    import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+    // Função para carregar desafios do Firebase
+    async function fetchChallenges(difficulty) {
+      try {
+        const db = getDatabase();
+        const snapshot = await get(ref(db, `reflexgames/${difficulty}`));
+        if (snapshot.exists()) {
+          return snapshot.val(); // Retorna os desafios da dificuldade selecionada
+        } else {
+          console.error("Nenhum desafio encontrado para a dificuldade:", difficulty);
+          return [];
+        }
+      } catch (error) {
+        console.error("Erro ao carregar desafios do Firebase:", error);
+        return [];
+      }
+    }
+
     // ======== Estado do jogo ========
     const savedXP = Number(localStorage.getItem("reflex_orion_xp")) || 0;
     const gameState = {
-      difficulty:null, level:1, xp:savedXP, maxLevels:3,
-      timeLimit:10, timer:null, timeLeft:10, currentChallenge:null,
-      stageName:"NEBULOSA", stageColor:"text-green-400", paused:false, muted:false,
-      hintUsed:false
+      difficulty: null,
+      level: 1,
+      xp: savedXP,
+      maxLevels: 3,
+      timeLimit: 10,
+      timer: null,
+      timeLeft: 10,
+      currentChallenge: null,
+      stageName: "NEBULOSA",
+      stageColor: "text-green-400",
+      paused: false,
+      muted: false,
+      hintUsed: false,
+      challenges: null // Armazena os desafios carregados do Firebase
     };
 
     // ======== Desafios por dificuldade ========
@@ -196,6 +268,20 @@
             { sequence:["#eab308","#22c55e","#3b82f6"], correct:false },
             { sequence:["#3b82f6","#eab308","#22c55e"], correct:false },
             { sequence:["#22c55e","#3b82f6","#eab308"], correct:false },
+        ]},
+        { type:"stroop", question:{ text:"VERMELHO", color:"blue" }, options:[
+            { text:"VERMELHO", color:"red", correct:false },
+            { text:"AZUL", color:"blue", correct:true },
+            { text:"VERDE", color:"green", correct:false },
+            { text:"AMARELO", color:"yellow", correct:false },
+        ]},
+        { type:"sequence", question:{ description:"Memorize a ordem", sequence:[
+            { color:"#22c55e", duration:450 },
+            { color:"#eab308", duration:450 },
+            { color:"#3b82f6", duration:450 }
+        ]}, options:[
+            { sequence:["#22c55e","#eab308","#3b82f6"], correct:true },
+            { sequence:["#3b82f6","#eab308","#22c55e"], correct:false }
         ]},
       ],
       medium:[
@@ -319,23 +405,58 @@
     });
 
     // ======== Jogo ========
-    function startGame(){
-      difficultyScreen.classList.add('hidden'); gameScreen.classList.remove('hidden'); resultsScreen.classList.add('hidden');
-      stageTitle.textContent=gameState.stageName; stageTitle.className=`text-xl ${gameState.stageColor}`;
-      loadChallenge(); startTimer();
+    async function startGame() {
+      difficultyScreen.classList.add('hidden');
+      gameScreen.classList.remove('hidden');
+      resultsScreen.classList.add('hidden');
+    
+      stageTitle.textContent = gameState.stageName;
+      stageTitle.className = `text-xl ${gameState.stageColor}`;
+    
+      // 🔥 Pega os desafios da dificuldade escolhida
+      const allChallenges = await loadChallengesFromDB(gameState.difficulty);
+    
+      // 🎲 Sorteia 3 desafios
+      gameState.currentSet = pickRandomChallenges(allChallenges, 3);
+      gameState.currentChallenge = gameState.currentSet[gameState.level - 1];
+    
+      loadChallenge();
+      startTimer();
     }
 
-    function loadChallenge(){
-      const arr=challenges[gameState.difficulty]; gameState.currentChallenge=arr[gameState.level-1];
-      challengeDisplay.innerHTML=''; optionsContainer.innerHTML='';
-      if(!gameState.currentChallenge){ // fallback
-        showCompletion(); return;
+    async function loadChallenge() {
+      if (!gameState.challenges) {
+        // Carrega os desafios do Firebase para a dificuldade selecionada
+        gameState.challenges = await loadChallengesFromDB(gameState.difficulty);
       }
-      switch(gameState.currentChallenge.type){
-        case 'stroop': displayStroopChallenge(); break;
-        case 'memory': displayMemoryChallenge(); break;
-        case 'illusion': displayIllusionChallenge(); break;
-        case 'sequence': displaySequenceChallenge(); break;
+    
+      const allChallenges = gameState.challenges;
+      gameState.currentSet = pickRandomChallenges(allChallenges, 3); // Sorteia 3 desafios
+      gameState.currentChallenge = gameState.currentSet[gameState.level - 1];
+    
+      challengeDisplay.innerHTML = '';
+      optionsContainer.innerHTML = '';
+    
+      if (!gameState.currentChallenge) {
+        // Fallback: Mostra a tela de conclusão se não houver mais desafios
+        showCompletion();
+        return;
+      }
+    
+      // Renderiza o desafio com base no tipo
+      switch (gameState.currentChallenge.type) {
+        case 'stroop':
+          displayStroopChallenge();
+          break;
+        case 'memory':
+          displayMemoryChallenge();
+          break;
+        case 'illusion':
+          displayIllusionChallenge();
+          break;
+        case 'sequence':
+          displaySequenceChallenge();
+          break;
       }
     }
 
@@ -456,6 +577,11 @@
     // ======== Init ========
     function init(){ createStars(); updateUI(); }
     init();
+
+    function pickRandomChallenges(allChallenges, count = 3) {
+      const shuffled = [...allChallenges].sort(() => Math.random() - 0.5); // Embaralha os desafios
+      return shuffled.slice(0, count); // Retorna os primeiros `count` desafios
+    }
   </script>
 </body>
-</html>
+</html> 
