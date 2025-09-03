@@ -134,6 +134,10 @@
       font-size: 16px;
       font-weight: bold;
     }
+
+    #planets div {
+  min-height: 120px; /* Define altura mínima para os cards */
+}
   </style>
 </head>
 
@@ -317,19 +321,49 @@
     // ---------- Sons (placeholder via console) -----------
     const playSound = type => { if (!state.sound) return; console.log('sound:', type); };
 
-    // ---------- Config de PlanetAS (reset e multiplicadores) -----------
+    // ---------- Config de PLANETAS (reset e multiplicadores) -----------
     const PLANETS = [
-      { id: 1, name: 'Terra Primordial', color: 'bg-blue-500', xpMult: 1, minComplex: 2 },
-      { id: 2, name: 'BioGênese',        color: 'bg-green-500', xpMult: 1.2, minComplex: 2 },
-      { id: 3, name: 'AquaMundi',        color: 'bg-cyan-500',  xpMult: 1.4, minComplex: 2 },
-      { id: 4, name: 'GeoForja',         color: 'bg-amber-500', xpMult: 1.6, minComplex: 3 },
-      { id: 5, name: 'TecnoPólis',       color: 'bg-indigo-500',xpMult: 1.8, minComplex: 3 },
-      { id: 6, name: 'Cultura Real',     color: 'bg-pink-500',  xpMult: 2.0, minComplex: 3 },
-      { id: 7, name: 'Energia & Física', color: 'bg-red-500',   xpMult: 2.2, minComplex: 3 },
-      { id: 8, name: 'Cosmos',           color: 'bg-purple-500',xpMult: 2.5, minComplex: 3 },
-      { id: 9, name: 'Prototipia',       color: 'bg-teal-500',  xpMult: 3.0, minComplex: 4 },
-      { id:10, name: 'Singularidade',    color: 'bg-yellow-500',xpMult: 3.5, minComplex: 4 },
-    ];
+  { id: 1, name: 'Terra Primordial', icon: 'planeta1.png', xpMult: 1,   minComplex: 2 },
+  { id: 2, name: 'BioGênese',        icon: 'planeta2.png', xpMult: 1.2, minComplex: 2 },
+  { id: 3, name: 'AquaMundi',        icon: 'planeta3.png', xpMult: 1.4, minComplex: 2 },
+  { id: 4, name: 'GeoForja',         icon: 'planeta4.png', xpMult: 1.6, minComplex: 3 },
+  { id: 5, name: 'TecnoPólis',       icon: 'planeta5.png', xpMult: 1.8, minComplex: 3 },
+  { id: 6, name: 'Cultura Real',     icon: 'planeta6.png', xpMult: 2.0, minComplex: 3 },
+  { id: 7, name: 'Energia & Física', icon: 'planeta7.png', xpMult: 2.2, minComplex: 3 },
+  { id: 8, name: 'Cosmos',           icon: 'planeta8.png', xpMult: 2.5, minComplex: 3 },
+  { id: 9, name: 'Prototipia',       icon: 'planeta9.png', xpMult: 3.0, minComplex: 4 },
+  { id:10, name: 'Singularidade',    icon: 'planeta10.png',xpMult: 3.5, minComplex: 4 },
+];
+
+
+// ---------- UI: Planetas ----------
+function renderPlanets() {
+  planetsEl.innerHTML = '';
+  PLANETS.forEach((p, idx) => {
+    const card = document.createElement('div');
+    const unlocked = state.level >= (idx * 2 + 1) || idx === 0; // liberação progressiva
+    card.className = `${unlocked ? '' : 'opacity-40'} bg-gray-800 p-2 text-center retro-border cursor-pointer`;
+    card.style.minHeight = '120px'; // Define altura mínima para o card
+    card.innerHTML = `
+      <img src="${p.icon}" class="w-full h-24 object-contain pixel-art mx-auto mb-1" alt="${p.name}">
+      <p class="text-[11px] leading-3">${p.name}</p>`;
+    card.addEventListener('click', () => {
+      if (!unlocked) {
+        notify('Planeta bloqueado. Suba de nível!');
+        playSound('error');
+        return;
+      }
+      if (state.planetIndex !== idx) {
+        state.planetIndex = idx;
+        notify(`🪐 Você viajou para ${p.name}!`);
+        playSound('combine');
+        renderAll();
+      }
+    });
+    planetsEl.appendChild(card);
+  });
+}
+
 
     // ---------- Estado Global -----------
     const state = {
@@ -419,19 +453,22 @@
     // ---------- UI: Planetas ----------
     function renderPlanets(){
       planetsEl.innerHTML='';
-      PLANETS.forEach((p,idx)=>{
-        const card=document.createElement('div');
-        const unlocked = state.level >= (idx*2+1) || idx===0; // liberação progressiva
-        card.className=`${unlocked?'':'opacity-40'} bg-gray-800 p-2 text-center retro-border cursor-pointer`;
-        card.innerHTML=`
-          <div class="w-12 h-12 mx-auto mb-1 ${p.color} rounded-full"></div>
+      PLANETS.forEach((p, idx) => {
+        const card = document.createElement('div');
+        const unlocked = state.level >= (idx * 2 + 1) || idx === 0; // liberação progressiva
+        card.className = `${unlocked ? '' : 'opacity-40'} bg-gray-800 p-2 text-center retro-border cursor-pointer`;
+        card.innerHTML = `
+          <img src="${p.icon}" class="w-12 h-12 mx-auto mb-1 pixel-art" alt="${p.name}">
           <p class="text-[11px] leading-3">${p.name}</p>`;
-        card.addEventListener('click',()=>{
-          if(!unlocked) { notify('Planeta bloqueado. Suba de nível!'); playSound('error'); return; }
-          if(state.planetIndex!==idx){
-            state.planetIndex=idx;
-            // reseta inventário do planeta (mantém 4 básicos)
-            if(state.planetInv[idx].size===4){ /* já base */ }
+        card.addEventListener('click', () => {
+          if (!unlocked) {
+            notify('Planeta bloqueado. Suba de nível!');
+            playSound('error');
+            return;
+          }
+          if (state.planetIndex !== idx) {
+            state.planetIndex = idx;
+            if (state.planetInv[idx].size === 4) { /* já base */ }
             notify(`🪐 Você viajou para ${p.name}!`);
             playSound('combine');
             renderAll();
